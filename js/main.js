@@ -5,6 +5,7 @@ const MAGIC_NUMBER = 'EROSION';
 const CIPHER_MAGIC_NUMBER = [3, 12];
 const HASH_MAGIC_NUMBER = [3, 6, 12];
 const ENCRYPTED_FILE_EXTENSION = '.ero';
+const FILENAME_MAX_LENGTH = 0xff;
 
 const FILE_ENCRYPTION_LIMIT = 1024 * 1024 * 100; // ~ 100 MB
 const FILE_DECRYPTION_LIMIT = 1024 * 1024 * 103; // ~ 103 MB for if the filename is obfuscated and for the nonce.
@@ -22,7 +23,7 @@ const NOT_RIGHT_KEY_ERROR_MESSAGE = 'Cannot decrypt the file because the wrong k
 
 const AVAILABLE_CIPHERS = ['ChaCha20-Poly1305', 'XChaCha20-Poly1305'];
 const AVAILABLE_HASH = ['SHA-256', 'SHA-256d', 'SHA3-256'];
-const AVAILABLE_ENCODING = ['Binary', 'Octal', 'Hex', 'Base32 (RFC-4648)', 'Base32 (Extended hex)', 'Base32 (z-base)', 'Base32 (Crockford)', 'Base64'];
+const AVAILABLE_ENCODING = ['Binary', 'Octal', 'Decimal', 'Hex', 'Base32 (RFC-4648)', 'Base32 (Extended hex)', 'Base32 (z-base)', 'Base32 (Crockford)', 'Base64'];
 //#endregion
 
 //#region HTML Elements
@@ -48,7 +49,6 @@ const plaintext_file_input = document.getElementById('plaintext-file-input');
 const plaintext_file_encrypt_button = document.getElementById('plaintext-file-encrypt-button');
 const plaintext_file_delete_button = document.getElementById('plaintext-file-delete-button');
 const plaintext_file_results = document.getElementById('plaintext-file-results');
-const plaintext_obfuscate_filename_check = document.getElementById('plaintext-obfuscate-filename-check');
 
 const ciphertext_file_input = document.getElementById('ciphertext-file-input');
 const ciphertext_file_decrypt_button = document.getElementById('ciphertext-file-decrypt-button');
@@ -198,12 +198,13 @@ const encode_cipertext = (ciphertext, algorithm) => {
     switch (algorithm) {
         case AVAILABLE_ENCODING[0]: return ciphertext.map(x => x.toString(2).padStart(8, '0')).join('');
         case AVAILABLE_ENCODING[1]: return ciphertext.map(x => x.toString(8).padStart(3, '0')).join('');
-        case AVAILABLE_ENCODING[2]: return ciphertext.map(x => x.toString(16).padStart(2, '0')).join('');
-        case AVAILABLE_ENCODING[3]: return base32.RFC_4648.encode(ciphertext);
-        case AVAILABLE_ENCODING[4]: return base32.BASE_32_HEX.encode(ciphertext);
-        case AVAILABLE_ENCODING[5]: return base32.Z_BASE_32.encode(ciphertext);
-        case AVAILABLE_ENCODING[6]: return base32.CROCKFORD_BASE_32.encode(ciphertext);
-        case AVAILABLE_ENCODING[7]: return btoa(ciphertext.map(x => String.fromCharCode(x)).join(''));
+        case AVAILABLE_ENCODING[2]: return BigInt(`0x${ciphertext.map(x => x.toString(16).padStart(2, '0')).join('')}`);
+        case AVAILABLE_ENCODING[3]: return ciphertext.map(x => x.toString(16).padStart(2, '0')).join('');
+        case AVAILABLE_ENCODING[4]: return base32.RFC_4648.encode(ciphertext);
+        case AVAILABLE_ENCODING[5]: return base32.BASE_32_HEX.encode(ciphertext);
+        case AVAILABLE_ENCODING[6]: return base32.Z_BASE_32.encode(ciphertext);
+        case AVAILABLE_ENCODING[7]: return base32.CROCKFORD_BASE_32.encode(ciphertext);
+        case AVAILABLE_ENCODING[8]: return btoa(ciphertext.map(x => String.fromCharCode(x)).join(''));
     }
 };
 
@@ -219,12 +220,13 @@ const decode_ciphertext = (ciphertext, algorithm) => {
     switch (algorithm) {
         case AVAILABLE_ENCODING[0]: return from_bin(ciphertext);
         case AVAILABLE_ENCODING[1]: return from_oct(ciphertext);
-        case AVAILABLE_ENCODING[2]: return from_hex(ciphertext);
-        case AVAILABLE_ENCODING[3]: return base32.RFC_4648.decode.to_array(ciphertext);
-        case AVAILABLE_ENCODING[4]: return base32.BASE_32_HEX.decode.to_array(ciphertext);
-        case AVAILABLE_ENCODING[5]: return base32.Z_BASE_32.decode.to_array(ciphertext);
-        case AVAILABLE_ENCODING[6]: return base32.CROCKFORD_BASE_32.decode.to_array(ciphertext);
-        case AVAILABLE_ENCODING[7]: return atob(ciphertext).split('').map(x => x.charCodeAt());
+        case AVAILABLE_ENCODING[2]: return from_hex(BigInt(ciphertext).toString(16));
+        case AVAILABLE_ENCODING[3]: return from_hex(ciphertext);
+        case AVAILABLE_ENCODING[4]: return base32.RFC_4648.decode.to_array(ciphertext);
+        case AVAILABLE_ENCODING[5]: return base32.BASE_32_HEX.decode.to_array(ciphertext);
+        case AVAILABLE_ENCODING[6]: return base32.Z_BASE_32.decode.to_array(ciphertext);
+        case AVAILABLE_ENCODING[7]: return base32.CROCKFORD_BASE_32.decode.to_array(ciphertext);
+        case AVAILABLE_ENCODING[8]: return atob(ciphertext).split('').map(x => x.charCodeAt());
     }
 };
 
@@ -238,9 +240,12 @@ const decode_ciphertext = (ciphertext, algorithm) => {
  * @returns {number[]} The byte array.
  */
 const from_radix = (s, radix, padding) => {
+    let to_pad = padding - s.length % padding;
+    if (to_pad === padding) to_pad = 0;
+    const to_process = s.padStart(s.length + to_pad, '0');
     let arr = [];
-    for (let i = 0; i < s.length; i += padding) {
-        arr.push(parseInt(s.slice(i, i + padding), radix));
+    for (let i = 0; i < to_process.length; i += padding) {
+        arr.push(parseInt(to_process.slice(i, i + padding), radix));
     }
     return arr;
 };
@@ -307,11 +312,10 @@ const encrypt_file = () => {
         const timestamp = performance.now();
         const key = get_key(key_file_input.value, settings_hash_select.value);
         const data = [].slice.call(new Uint8Array(fr.result));
-        const filename = file.name;
-        const obfuscate = plaintext_obfuscate_filename_check.checked;
-        const plaintext = obfuscate ? [to_byte(filename).slice(0, 255).length].concat(to_byte(filename).slice(0, 255)).concat(data) : [0].concat(data);
+        const filename = to_byte(file.name).slice(0, FILENAME_MAX_LENGTH);
+        const plaintext = [filename.length].concat(filename).concat(data);
         const ciphertext = get_magic_number(settings_cipher_select.value, settings_hash_select.value).concat(get_ciphertext(key, plaintext, settings_cipher_select.value));
-        download_bytes(ciphertext, obfuscate ? `${get_timestamp()}${ENCRYPTED_FILE_EXTENSION}` : `${filename}${ENCRYPTED_FILE_EXTENSION}`);
+        download_bytes(ciphertext, `${file.name}${ENCRYPTED_FILE_EXTENSION}`);
         deal_with_end_of_file_encryption(timestamp);
     };
     fr.onerror = () => {
@@ -458,13 +462,16 @@ const get_magic_number = (cipher_algorithm, hash_algorithm) => {
 };
 
 /**
- * Get the current ISO timestamp.
+ * Get the Crockford Base32 encoded SHA-1 checksum of the current ISO timestamp.
  * 
- * @returns {string} The current ISO timestamp.
+ * @returns {string} The Crockford Base32 encoded SHA-1 checksum of the current ISO timestamp.
  */
 const get_timestamp = () => {
-    const timestamp = new Date().toISOString().replaceAll('-', '').replaceAll('T', '').replaceAll(':', '');
-    return timestamp.slice(0, timestamp.indexOf('.'));
+    const timestamp = new Date().toISOString();
+    const formated_timestamp = `E${timestamp.replaceAll('-', '').replaceAll(':', '').replaceAll('.', '').replaceAll('T', 'R').replaceAll('Z', 'O')}`;
+    const checksum = sha1.hash.array(formated_timestamp);
+    const formated_checksum = base32.CROCKFORD_BASE_32.encode(checksum, true);
+    return formated_checksum;
 };
 
 /**
@@ -692,13 +699,12 @@ const init = () => {
     key_file_delete_button.click();
 
     // Options
-    plaintext_obfuscate_filename_check.checked = true;
     ciphertext_file_input.accept = ENCRYPTED_FILE_EXTENSION;
 
     // Settings
-    settings_cipher_select.value = AVAILABLE_CIPHERS[1];
-    settings_hash_select.value = AVAILABLE_HASH[2];
-    settings_encoding_select.value = AVAILABLE_ENCODING[7];
+    settings_cipher_select.value = 'XChaCha20-Poly1305';
+    settings_hash_select.value = 'SHA3-256';
+    settings_encoding_select.value = 'Base64';
     settings_lock_check.checked = true;
     toggle_settings();
 
