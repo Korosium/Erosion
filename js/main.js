@@ -5,7 +5,7 @@ const MAGIC_NUMBER = 'EROSION';
 const CIPHER_MAGIC_NUMBER = [3, 12];
 const HASH_MAGIC_NUMBER = [3, 6, 12];
 const ENCRYPTED_FILE_EXTENSION = '.ero';
-const FILENAME_MAX_LENGTH = 0xff;
+const FILENAME_MAX_LENGTH = 255;
 
 const FILE_ENCRYPTION_LIMIT = 1024 * 1024 * 100; // ~ 100 MB
 const FILE_DECRYPTION_LIMIT = 1024 * 1024 * 103; // ~ 103 MB for if the filename is obfuscated and for the nonce.
@@ -113,7 +113,7 @@ settings_lock_check.onchange = () => toggle_settings();
  */
 const check_text_params = (input, error_message) => {
     try {
-        if (input.value.length === 0) throw new Error(error_message);
+        if (input.value.trim().length === 0) throw new Error(error_message);
         if (key_text_input.value.length === 0) throw new Error(KEY_EMPTY_ERROR_MESSAGE);
     } catch (error) {
         window.alert(error.message);
@@ -128,7 +128,7 @@ const check_text_params = (input, error_message) => {
 const encrypt_text = () => {
     if (!check_text_params(plaintext_text_textarea, PLAINTEXT_EMPTY_ERROR_MESSAGE)) return;
     const key = get_key(key_text_input.value, settings_hash_select.value);
-    const ciphertext = get_ciphertext(key, plaintext_text_textarea.value, settings_cipher_select.value);
+    const ciphertext = get_ciphertext(key, plaintext_text_textarea.value.trim(), settings_cipher_select.value);
     const encoded = encode_cipertext(ciphertext, settings_encoding_select.value);
     ciphertext_text_textarea.value = encoded;
 };
@@ -151,7 +151,7 @@ const decrypt_text = () => {
  */
 const decrypt_text_chosen_params = () => {
     const key = get_key(key_text_input.value, settings_hash_select.value);
-    const ciphertext = decode_ciphertext(ciphertext_text_textarea.value, settings_encoding_select.value);
+    const ciphertext = decode_ciphertext(ciphertext_text_textarea.value.trim(), settings_encoding_select.value);
     const plaintext = to_utf8(get_plaintext(key, ciphertext, settings_cipher_select.value));
     plaintext_text_textarea.value = plaintext;
 };
@@ -166,7 +166,7 @@ const decrypt_text_bruteforce = () => {
             const key = get_key(key_text_input.value, AVAILABLE_HASH[j]);
             for (let k = 0; k < AVAILABLE_ENCODING.length; k++) {
                 try {
-                    const ciphertext = decode_ciphertext(ciphertext_text_textarea.value, AVAILABLE_ENCODING[k]);
+                    const ciphertext = decode_ciphertext(ciphertext_text_textarea.value.trim(), AVAILABLE_ENCODING[k]);
                     const plaintext = to_utf8(get_plaintext(key, ciphertext, AVAILABLE_CIPHERS[i]));
                     plaintext_text_textarea.value = plaintext;
                     if (!locked_settings) {
@@ -459,19 +459,6 @@ const get_magic_number = (cipher_algorithm, hash_algorithm) => {
     const hash_bits = HASH_MAGIC_NUMBER[AVAILABLE_HASH.indexOf(hash_algorithm)];
     file_magic_number.push(cipher_bits | hash_bits);
     return file_magic_number;
-};
-
-/**
- * Get the Crockford Base32 encoded SHA-1 checksum of the current ISO timestamp.
- * 
- * @returns {string} The Crockford Base32 encoded SHA-1 checksum of the current ISO timestamp.
- */
-const get_timestamp = () => {
-    const timestamp = new Date().toISOString();
-    const formated_timestamp = `E${timestamp.replaceAll('-', '').replaceAll(':', '').replaceAll('.', '').replaceAll('T', 'R').replaceAll('Z', 'O')}`;
-    const checksum = sha1.hash.array(formated_timestamp);
-    const formated_checksum = base32.CROCKFORD_BASE_32.encode(checksum, true);
-    return formated_checksum;
 };
 
 /**
