@@ -1,6 +1,11 @@
 //#region Constants
 const AUTHOR_NAME = 'Korosium';
 
+const ASCII_NUMBER_INDEXES = { start: 48, end: 57 };
+const ASCII_UPPER_CASE_INDEXES = { start: 65, end: 90 };
+const ASCII_LOWER_CASE_INDEXES = { start: 97, end: 122 };
+const ASCII_SYMBOLS_INDEXES = { start: 33, end: 126 };
+
 const MAGIC_NUMBER = 'EROSION';
 const CIPHER_MAGIC_NUMBER = [3, 12];
 const HASH_MAGIC_NUMBER = [3, 6, 12];
@@ -42,6 +47,7 @@ const ciphertext_text_delete_button = document.getElementById('ciphertext-text-d
 const key_text_input = document.getElementById('key-text-input');
 const key_text_show_button = document.getElementById('key-text-show-button');
 const key_text_copy_button = document.getElementById('key-text-copy-button');
+const key_text_generate_button = document.getElementById('key-text-generate-button');
 const key_text_delete_button = document.getElementById('key-text-delete-button');
 
 // File
@@ -58,6 +64,7 @@ const ciphertext_file_results = document.getElementById('ciphertext-file-results
 const key_file_input = document.getElementById('key-file-input');
 const key_file_show_button = document.getElementById('key-file-show-button');
 const key_file_copy_button = document.getElementById('key-file-copy-button');
+const key_file_generate_button = document.getElementById('key-file-generate-button');
 const key_file_delete_button = document.getElementById('key-file-delete-button');
 
 // Settings
@@ -80,6 +87,7 @@ ciphertext_text_delete_button.onclick = () => ciphertext_text_textarea.value = '
 
 key_text_show_button.onclick = () => show_text_password(key_text_input, key_text_show_button);
 key_text_copy_button.onclick = () => copy_text_to_clipboard(key_text_input.value);
+key_text_generate_button.onclick = () => generate_text_password();
 key_text_delete_button.onclick = () => key_text_input.value = '';
 
 // File
@@ -93,6 +101,7 @@ ciphertext_file_delete_button.onclick = () => delete_decrypt_file();
 
 key_file_show_button.onclick = () => show_text_password(key_file_input, key_file_show_button);
 key_file_copy_button.onclick = () => copy_text_to_clipboard(key_file_input.value);
+key_file_generate_button.onclick = () => generate_file_password();
 key_file_delete_button.onclick = () => key_file_input.value = '';
 
 // Settings
@@ -102,6 +111,13 @@ settings_lock_check.onchange = () => toggle_settings();
 //#region Functions
 
 //#region Text
+
+/**
+ * Generate a password for the text key field.
+ */
+const generate_text_password = () => {
+    key_text_input.value = generate_password();
+};
 
 /**
  * Check the parameters for the text processes.
@@ -281,6 +297,13 @@ const from_hex = s => from_radix(s, 16, 2);
 //#region File
 let clear_plaintext_file_results_timeout = setTimeout(() => { plaintext_file_results.innerHTML = ''; }, 0);
 let clear_ciphertext_file_results_timeout = setTimeout(() => { ciphertext_file_results.innerHTML = ''; }, 0);
+
+/**
+ * Generate a password for the file key field.
+ */
+const generate_file_password = () => {
+    key_file_input.value = generate_password();
+};
 
 /**
  * Check the parameters for the file processes.
@@ -628,6 +651,124 @@ const show_text_password = (password_input, show_button) => {
         password_input.type = 'password';
         show_button.innerHTML = 'Show';
     }
+};
+
+/**
+ * Generate a cryptographically secure random number.
+ * 
+ * @param {number} min The minimum possible value (inclusive).
+ * @param {number} max The maximum possible value (exclusive).
+ * 
+ * @returns {number} The random number.
+ */
+const rng = (min, max) => {
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+    return Math.floor(seed * (max - min) + min);
+};
+
+/**
+ * Remove the Nth element from the array.
+ * 
+ * @param {any[]}  arr The array to remove the element from.
+ * @param {number} i   The index of the element to be removed.
+ * 
+ * @returns {any[]} The array with one element missing.
+ */
+const remove_element_from_array = (arr, i) => {
+    const l = arr.slice(0, i);
+    const u = arr.slice(i + 1);
+    return l.concat(u);
+};
+
+/**
+ * Generate a char array from a start index up to an end index.
+ * 
+ * @param {number} start The start index (inclusive).
+ * @param {number} end   The end index (inclusive).
+ * 
+ * @returns {string[]} The char array.
+ */
+const generate_char_array = (start, end) => {
+    let retval = [];
+    for (let i = start; i <= end; i++) {
+        retval.push(String.fromCharCode(i));
+    }
+    return retval;
+};
+
+/**
+ * Generate all the possible ASCII symbol characters.
+ * 
+ * @returns {string[]} The array containing all the ASCII symbol characters.
+ */
+const generate_symbols_array = () => {
+    let retval = [];
+    for (let i = ASCII_SYMBOLS_INDEXES.start; i <= ASCII_SYMBOLS_INDEXES.end; i++) {
+        if (i === ASCII_NUMBER_INDEXES.start) i = ASCII_NUMBER_INDEXES.end + 1;
+        if (i === ASCII_UPPER_CASE_INDEXES.start) i = ASCII_UPPER_CASE_INDEXES.end + 1;
+        if (i === ASCII_LOWER_CASE_INDEXES.start) i = ASCII_LOWER_CASE_INDEXES.end + 1;
+        retval.push(String.fromCharCode(i));
+    }
+    return retval;
+};
+
+/**
+ * Generate a new cryptographically secure password.
+ * 
+ * @param {number} length  The desired length of the password.
+ * 
+ * @returns {string} The new generated password.
+ */
+const generate_password = (length = 32) => {
+    const numbers_arr = generate_char_array(ASCII_NUMBER_INDEXES.start, ASCII_NUMBER_INDEXES.end);
+    const upper_arr = generate_char_array(ASCII_UPPER_CASE_INDEXES.start, ASCII_UPPER_CASE_INDEXES.end);
+    const lower_arr = generate_char_array(ASCII_LOWER_CASE_INDEXES.start, ASCII_LOWER_CASE_INDEXES.end);
+    const symbols_arr = generate_symbols_array();
+
+    const flags = {
+        numbers: false,
+        uppers: false,
+        lowers: false,
+        symbols: false
+    };
+
+    let arr = [];
+    while (!flags.numbers || !flags.uppers || !flags.lowers || !flags.symbols) {
+        flags.numbers = false;
+        flags.uppers = false;
+        flags.lowers = false;
+        flags.symbols = false;
+
+        arr = [];
+        for (let i = 0; i < length; i++) {
+            const r = rng(0, 4);
+            if (r % 4 === 0) {
+                arr.push(numbers_arr[rng(0, numbers_arr.length)]);
+                flags.numbers = true;
+            }
+            else if (r % 4 === 1) {
+                arr.push(upper_arr[rng(0, upper_arr.length)]);
+                flags.uppers = true;
+            }
+            else if (r % 4 === 2) {
+                arr.push(lower_arr[rng(0, lower_arr.length)]);
+                flags.lowers = true;
+            }
+            else if (r % 4 === 3) {
+                arr.push(symbols_arr[rng(0, symbols_arr.length)]);
+                flags.symbols = true;
+            }
+        }
+    }
+
+    let password = '';
+    for (i = 0; i < length; i++) {
+        const n = rng(0, arr.length);
+        password += arr[n];
+        arr = remove_element_from_array(arr, n);
+    }
+
+    return password;
 };
 
 /**
