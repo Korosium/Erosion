@@ -1,0 +1,1 @@
+body,textarea,input[type=text],input[type=password],input[type=file],select{background-color:#000000!important;color:#ffffff!important;}select:disabled{background-color:#444444!important;color:#aaaaaa!important;}textarea{height:26ch!important;resize:none!important;}button{width:100px;}
